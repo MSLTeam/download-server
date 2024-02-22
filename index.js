@@ -7,6 +7,8 @@ const app = express();
 app.use(express.json());
 
 const AUTH_TOKEN = 'your_auth_token'; // 你的授权令牌
+const serverUrl = 'http://mirror.mslmc.cn'
+const port = '3002'
 
 // 生成随机8位数字/小写字母的函数
 function generatePrefix() {
@@ -63,5 +65,5 @@ app.post('/', async (req, res) => {
 
 app.use('/temp', express.static(path.resolve(__dirname, 'temp')));
 
-app.listen(3002, () => console.log('下载服务正在监听3002端口'));
+app.listen(port, () => console.log(`下载服务正在监听${port}端口`));
 
