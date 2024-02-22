@@ -1,69 +1,63 @@
-
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
 const app = express();
 app.use(express.json());
 
-const AUTH_TOKEN = 'your_auth_token'; // 你的授权令牌
+const AUTH_TOKEN = 'your_auth_token'; // 授权令牌
+const SERVER_PORT = 3002; // 服务器端口
+const TEMP_DIR = 'temp'; // 临时文件夹
 const serverUrl = 'http://mirror.mslmc.cn'
-const port = '3002'
 
-// 生成随机8位数字/小写字母的函数
-function generatePrefix() {
-    return crypto.randomBytes(4).toString('hex');
+// 检查临时文件夹是否存在，如果不存在则创建它
+if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR);
 }
-// 记录请求信息的中间件
-app.use((req, res, next) => {
-    const now = new Date();
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    console.log(`Time: ${now.toISOString()}, IP: ${ip}, URL: ${req.originalUrl}`);
-    next();
-});
 
 app.post('/', async (req, res) => {
-    const authToken = req.headers.authorization && req.headers.authorization.split(' ')[1];
-    const url = req.body.url;
-    const filename = generatePrefix() + originalFilename;
-    const tempDir = path.resolve(__dirname, 'temp');
-    const filepath = path.resolve(tempDir, filename);
+    const fileUrl = req.body.url;
 
-    if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir);
+    if (req.headers.authorization !== `Bearer ${AUTH_TOKEN}`) {
+        res.status(403).send('无效的授权令牌');
+        return;
     }
 
-    if (authToken !== AUTH_TOKEN) {
-        return res.sendStatus(403); // Forbidden
+    try {
+        console.log(`请求下载的地址: ${fileUrl}`); // 打印请求的下载地址
+
+        const response = await axios.get(fileUrl, { responseType: 'stream' });
+        const randomPrefix = crypto.randomBytes(4).toString('hex');
+        const filePath = path.join(TEMP_DIR, `${randomPrefix}_${path.basename(fileUrl)}`);
+        const writer = fs.createWriteStream(filePath);
+
+        response.data.pipe(writer);
+
+        writer.on('finish', () => {
+            console.log(`下载完成: ${serverUrl}:${SERVER_PORT}/${filePath}`); // 打印下载完成的文件地址
+
+            res.status(200).send({ url: `${serverUrl}:${SERVER_PORT}/${filePath}`, message: '下载完成' });
+
+            // 在2小时后删除文件
+            setTimeout(() => {
+                fs.unlink(filePath, err => {
+                    if (err) console.error(`无法删除文件: ${err}`);
+                });
+            }, 2 * 60 * 60 * 1000);
+        });
+
+        writer.on('error', (err) => {
+            res.status(500).send('服务器2下载文件失败');
+            console.error(`文件下载失败: ${err}`);
+        });
+    } catch (err) {
+        res.status(500).send('服务器2下载文件失败');
+        console.error(`文件下载失败: ${err}`);
     }
-
-    const writer = fs.createWriteStream(filepath);
-
-    const response = await axios({
-        url,
-        method: 'GET',
-        responseType: 'stream'
-    });
-
-    response.data.pipe(writer);
-
-    writer.on('finish', () => {
-        res.json({ url: `${serverUrl}:${port}/temp/${filename}` });
-        // 设置1小时后删除文件
-        setTimeout(() => {
-            fs.unlink(filepath, err => {
-                if (err) console.error('删除文件失败:', err);
-            });
-        }, 60 * 60 * 1000); // 1小时
-    });
-
-    writer.on('error', (err) => {
-        fs.unlinkSync(filepath);
-        res.status(500).json({ error: err.message });
-    });
 });
 
-app.use('/temp', express.static(path.resolve(__dirname, 'temp')));
-
-app.listen(port, () => console.log(`下载服务正在监听${port}端口`));
-
+app.listen(SERVER_PORT, () => {
+    console.log(`服务器2正在监听端口${SERVER_PORT}`);
+});
