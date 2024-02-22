@@ -17,6 +17,7 @@ if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR);
 }
 
+app.use('/temp', express.static(path.join(__dirname, 'temp')));
 app.post('/', async (req, res) => {
     const fileUrl = req.body.url;
 
