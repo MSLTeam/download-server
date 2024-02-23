@@ -80,5 +80,5 @@ app.post('/', async (req, res) => {
 });
 
 app.listen(SERVER_PORT, () => {
-    console.log(`服务器2正在监听端口${SERVER_PORT}`);
+    console.log(`镜像下载服务器正在监听端口${SERVER_PORT}`);
 });
