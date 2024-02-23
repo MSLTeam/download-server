@@ -10,13 +10,33 @@ app.use(express.json());
 const AUTH_TOKEN = 'your_auth_token'; // 授权令牌
 const SERVER_PORT = 3002; // 服务器端口
 const TEMP_DIR = 'temp'; // 临时文件夹
-const serverUrl = 'http://mirror.mslmc.cn'
+const serverUrl = ''
 
 // 检查临时文件夹是否存在，如果不存在则创建它
 if (!fs.existsSync(TEMP_DIR)) {
     fs.mkdirSync(TEMP_DIR);
 }
 
+// 中间件，用于检查连接时间是否超过60分钟
+app.use((req, res, next) => {
+    const startTime = Date.now();
+    //设置一个定时器，在60分钟后检查连接
+    const timer = setTimeout(() => {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime > 60 * 60 * 1000) {
+            // 如果连接时间超过60分钟，发送404响应并断开连接
+            res.status(404).send('Not Found');
+            res.end();
+        }
+    }, 60 * 60 * 1000);
+    // 连接关闭，清除定时器
+    res.on('finish', () => {
+        clearTimeout(timer);
+    });
+
+    // 继续执行下一个中间件
+    next();
+});
 app.use('/temp', express.static(path.join(__dirname, 'temp')));
 app.post('/', async (req, res) => {
     const fileUrl = req.body.url;
@@ -50,11 +70,11 @@ app.post('/', async (req, res) => {
         });
 
         writer.on('error', (err) => {
-            res.status(500).send('服务器2下载文件失败');
+            res.status(500).send('镜像服务器下载文件失败');
             console.error(`文件下载失败: ${err}`);
         });
     } catch (err) {
-        res.status(500).send('服务器2下载文件失败');
+        res.status(500).send('镜像服务器下载文件失败');
         console.error(`文件下载失败: ${err}`);
     }
 });
